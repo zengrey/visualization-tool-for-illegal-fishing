@@ -603,38 +603,52 @@ function countConnections(node) {
 function calculateRiskScore(node, connections) {
     let score = 0;
     
-    // 基于连接数的基础分
-    score += Math.min(connections * 0.5, 5);
+    // Base score based on connection count (degree)
+    score += Math.min(connections * 0.3, 3); // Max 3 points
     
-    // 可疑实体获得额外分数
-    if (suspectEntities.includes(node.id)) {
-        score += 3;
-    }
-    
-    // 根据实体类型调整分数
+    // Node type contribution
     if (node.type === 'vessel') {
-        score += 1;
+        score += 2; // High risk due to potential illicit transport
     } else if (node.type === 'organization') {
-        score += 0.5;
+        score += 1; // Moderate risk for structured entities
+    } else if (node.type === 'person') {
+        score += 0.5; // Lower risk unless suspicious
     }
     
-    // 查找与已知风险实体的连接
-    let riskyConnections = 0;
-    
-    link.each(function(l) {
-        if (l.source.id === node.id && suspectEntities.includes(l.target.id)) {
-            riskyConnections++;
-        }
-        if (l.target.id === node.id && suspectEntities.includes(l.source.id)) {
-            riskyConnections++;
+    // Check for connections to vessels (high risk)
+    let vesselConnections = 0;
+    graph.links.forEach(link => {
+        if ((link.source.id === node.id || link.target.id === node.id) && 
+            (link.source.type === 'vessel' || link.target.type === 'vessel')) {
+            vesselConnections++;
         }
     });
     
-    // 根据风险连接调整分数
-    score += riskyConnections * 1.5;
+    // Add risk score for vessel connections
+    score += Math.min(vesselConnections * 0.5, 2); // Max 2 points for vessel connections
     
-    // 限制最大值为10
-    return Math.min(Math.round(score * 10) / 10, 10);
+    // Check for connections to organizations (moderate risk)
+    let orgConnections = 0;
+    graph.links.forEach(link => {
+        if ((link.source.id === node.id || link.target.id === node.id) && 
+            (link.source.type === 'organization' || link.target.type === 'organization')) {
+            orgConnections++;
+        }
+    });
+    
+    // Add risk score for organization connections
+    score += Math.min(orgConnections * 0.3, 1.5); // Max 1.5 points for org connections
+    
+    // Suspicious entity detection
+    const isSuspicious = connections > 10 || vesselConnections > 3;
+    if (isSuspicious) {
+        score += 3; // High risk for highly connected nodes or many vessel connections
+    }
+    
+    // Normalize score to 0-10 range
+    score = Math.min(Math.max(score, 0), 10);
+    
+    return score;
 }
 
 // 获取风险颜色
