@@ -1,0 +1,275 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IUU Fishing Network Analysis Tool</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f8fa;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 300px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .main {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        #graph {
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #pca-plot {
+            position: absolute;
+            right: 30px;
+            bottom: 30px;
+            width: 300px;
+            height: 300px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+        }
+        #pca-plot-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 11;
+        }
+        h1, h2, h3 {
+            margin-top: 0;
+        }
+        .search-box {
+            margin-bottom: 20px;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #entity-info {
+            margin-top: 20px;
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .node {
+            cursor: pointer;
+        }
+        .link {
+            stroke-opacity: 0.6;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        .filter-group {
+            margin-bottom: 15px;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .checkbox-container input[type="checkbox"] {
+            width: auto;
+            margin: 0 8px 0 0;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            margin-bottom: 5px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        #connection-stats {
+            margin-top: 20px;
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        #connection-chart {
+            width: 100%;
+            height: 200px;
+            margin-top: 10px;
+        }
+        #mean-distribution {
+            position: absolute;
+            right: 30px;
+            top: 30px;
+            width: 300px;
+            height: 300px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            padding: 10px;
+        }
+        #mean-distribution-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        #mean-chart {
+            width: 100%;
+            height: calc(100% - 30px);
+            overflow: visible;
+        }
+        .type-label {
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>IUU Fishing Network Analysis</h1>
+            
+            <div class="search-box">
+                <h3>Entity Search</h3>
+                <input type="text" id="search-input" placeholder="Enter entity name or ID...">
+                <button id="search-btn">Search</button>
+            </div>
+            
+            <div class="filter-group">
+                <h3>Entity Type Filter</h3>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="filter-org" checked>
+                    <label for="filter-org">Organization</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="filter-person" checked>
+                    <label for="filter-person">Person</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="filter-vessel" checked>
+                    <label for="filter-vessel">Vessel</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="filter-location" checked>
+                    <label for="filter-location">Location</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="filter-event" checked>
+                    <label for="filter-event">Event</label>
+                </div>
+            </div>
+            
+            <div class="filter-group">
+                <h3>Suspected Entities</h3>
+                <button id="suspect-1">Mar de la Vida OJSC</button>
+                <button id="suspect-2">979893388</button>
+                <button id="suspect-3">Oceanfront Oasis Inc Carriers</button>
+                <button id="suspect-4">8327</button>
+            </div>
+            
+            <div id="entity-info">
+                <h3>Entity Information</h3>
+                <p>Select a node to view details</p>
+            </div>
+            
+            <div id="connection-stats">
+                <h2>Connection Type Distribution</h2>
+                <div id="connection-chart"></div>
+            </div>
+            
+            <div class="legend">
+                <h3>Legend</h3>
+                <div style="display: flex; flex-wrap: wrap; width: 100%;">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #e74c3c;"></div>
+                        <span>Organization</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #3498db;"></div>
+                        <span>Person</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #2ecc71;"></div>
+                        <span>Vessel</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #f39c12;"></div>
+                        <span>Location</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #9b59b6;"></div>
+                        <span>Event</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main">
+            <div id="graph"></div>
+            <div id="pca-plot">
+                <div id="pca-plot-title">Entity PCA Distribution</div>
+            </div>
+            <div id="mean-distribution">
+                <div id="mean-distribution-title">Mean Connection Distribution</div>
+                <div id="mean-chart"></div>
+            </div>
+            <div id="tooltip" class="tooltip" style="display: none;"></div>
+            <div id="loading" class="loading">Loading data, please wait...</div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html> 
